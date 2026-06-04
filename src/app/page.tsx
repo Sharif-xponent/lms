@@ -56,7 +56,7 @@ export default async function HomePage() {
               <Link href="#features" className="text-slate-600 hover:text-slate-900 transition">
                 Features
               </Link>
-              <Link href="#courses" className="text-slate-600 hover:text-slate-900 transition">
+              <Link href="courses" className="text-slate-600 hover:text-slate-900 transition">
                 Courses
               </Link>
               <Link href="#instructors" className="text-slate-600 hover:text-slate-900 transition">
@@ -131,7 +131,7 @@ export default async function HomePage() {
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Button>
                   </Link>
-                  <Link href="#courses">
+                  <Link href="/courses">
                     <Button size="lg" variant="outline" className="text-lg">
                       Browse Courses
                     </Button>
@@ -394,7 +394,7 @@ export default async function HomePage() {
               <h4 className="font-semibold mb-4">Platform</h4>
               <ul className="space-y-2 text-sm text-slate-400">
                 <li><Link href="#features" className="hover:text-white transition">Features</Link></li>
-                <li><Link href="#courses" className="hover:text-white transition">Courses</Link></li>
+                <li><Link href="/courses" className="hover:text-white transition">Courses</Link></li>
                 <li><Link href="#pricing" className="hover:text-white transition">Pricing</Link></li>
               </ul>
             </div>
