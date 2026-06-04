@@ -113,8 +113,8 @@ export default function InstructorDashboard() {
       });
 
       if (result.success) {
-        setCourses(result.data);
-        setTotalPages(result.pagination.totalPages);
+        setCourses(result.data as any);
+        setTotalPages(result.pagination?.totalPages as any);
       } else {
         setError(result.error);
       }
@@ -232,8 +232,8 @@ export default function InstructorDashboard() {
               
               <Select value={`${sortBy}-${sortOrder}`} onValueChange={(v) => {
                 const [newSortBy, newSortOrder] = v.split("-");
-                setSortBy(newSortBy);
-                setSortOrder(newSortOrder);
+                setSortBy(newSortBy as any);
+                setSortOrder(newSortOrder as any);
                 setCurrentPage(1);
               }}>
                 <SelectTrigger>

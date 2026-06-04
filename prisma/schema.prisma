@@ -1,4 +1,4 @@
-// Prisma schema — LearnHub LMS (Minimal for Modules 1 & 2)
+// Prisma schema — LearnHub LMS with Quiz Support
 // Extended from the provided auth starter
 
 datasource db {
@@ -39,9 +39,10 @@ model User {
   sessions Session[]
 
   // LearnHub relations
-  courses     Course[]     // Courses authored (instructor)
-  enrollments Enrollment[] // Courses enrolled (student)
-  reviews     Review[]     // Reviews written (student)
+  courses      Course[]
+  enrollments  Enrollment[]
+  reviews      Review[]
+  quizAttempts QuizAttempt[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -84,29 +85,27 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// ========== LEARNHUB MODELS (Modules 1 & 2) ==========
+// ========== LEARNHUB MODELS ==========
 
 model Course {
   id          String       @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   description String
-  coverImage  String?      // URL to cover image
-  category    String       // e.g., "Programming", "Design", "Business"
-  level       String       // "Beginner", "Intermediate", "Advanced"
-  price       Float        // 0 = free, >0 = paid
+  coverImage  String?
+  category    String
+  level       String
+  price       Float
   status      CourseStatus @default(DRAFT)
-  
-  // Relations
-  instructorId String  @db.ObjectId
-  instructor   User    @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  instructorId String       @db.ObjectId
+  instructor   User         @relation(fields: [instructorId], references: [id], onDelete: Cascade)
   sections     Section[]
   enrollments  Enrollment[]
   reviews      Review[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  // Indexes for catalog search/filter
+
   @@index([status])
   @@index([category])
   @@index([level])
@@ -114,108 +113,132 @@ model Course {
 }
 
 model Section {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   description String?
-  order       Int      // For drag-and-drop ordering
-  
-  // Relations
-  courseId    String   @db.ObjectId
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  lessons     Lesson[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  order       Int
+
+  courseId String   @db.ObjectId
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons  Lesson[]
+  quiz     Quiz?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([courseId, order])
 }
 
 model Lesson {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
   title       String
-  content     String?    // Rich text content
-  videoUrl    String?    // URL to video
-  attachments String[]   // Array of attachment URLs
+  content     String?
+  videoUrl    String?
+  attachments String[]
   type        LessonType @default(TEXT)
-  order       Int        // For ordering within section
-  isPreview   Boolean    @default(false) // Free preview for non-enrolled students
-  
-  // Relations
-  sectionId   String     @db.ObjectId
-  section     Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  quiz        Quiz?      // Optional quiz attached to lesson
-  
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
+  order       Int
+  isPreview   Boolean    @default(false)
+
+  sectionId String  @db.ObjectId
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  quiz      Quiz?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([sectionId, order])
 }
 
 model Quiz {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  description String?
-  passingScore Int      @default(70) // Percentage required to pass
-  
-  // Relations
-  lessonId    String    @unique @db.ObjectId // One-to-one with lesson
-  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  questions   Question[]
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String?
+  timeLimit       Int?
+  passingScore    Int     @default(70)
+  attemptsAllowed Int     @default(1) // -1 for unlimited
+
+  // Polymorphic relations: can belong to either Section or Lesson
+  // Use @unique to enforce one-to-one relationship
+  sectionId String? @unique @db.ObjectId
+  lessonId  String? @unique @db.ObjectId
+
+  section   Section?      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lesson    Lesson?       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Question {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  text        String
-  options     String[] // Array of option texts (for multiple choice)
-  correctAnswer Int    // Index of correct option (0-based)
-  points      Int      @default(1)
-  
-  // Relations
-  quizId      String   @db.ObjectId
-  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  text          String
+  options       String[]
+  correctAnswer Int
+  points        Int      @default(1)
+  explanation   String?
+
+  quizId String @db.ObjectId
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([quizId])
 }
 
+model QuizAttempt {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  score       Int
+  totalPoints Int
+  percentage  Float
+  passed      Boolean
+  answers     Json
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  quizId    String @db.ObjectId
+  quiz      Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId String @db.ObjectId
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([quizId, studentId])
+  @@index([studentId])
+}
+
 model Enrollment {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  progress    Int      @default(0) // Percentage of course completed
-  completed   Boolean  @default(false)
-  enrolledAt  DateTime @default(now())
-  
-  // Relations
-  studentId   String   @db.ObjectId
-  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  courseId    String   @db.ObjectId
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  // Quiz results can be stored separately if needed
-  
-  @@unique([studentId, courseId]) // Prevent duplicate enrollments
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  progress       Int      @default(0)
+  completed      Boolean  @default(false)
+  enrolledAt     DateTime @default(now())
+  lastAccessedAt DateTime @updatedAt
+
+  studentId String @db.ObjectId
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId  String @db.ObjectId
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  completedItems Json?
+
+  @@unique([studentId, courseId])
   @@index([studentId])
   @@index([courseId])
 }
 
 model Review {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  rating      Int      // 1-5 stars
-  comment     String?
-  
-  // Relations
-  studentId   String   @db.ObjectId
-  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  courseId    String   @db.ObjectId
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  @@unique([studentId, courseId]) // One review per student per course
+  id      String  @id @default(auto()) @map("_id") @db.ObjectId
+  rating  Int
+  comment String?
+
+  studentId String @db.ObjectId
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId  String @db.ObjectId
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, courseId])
   @@index([courseId, rating])
 }

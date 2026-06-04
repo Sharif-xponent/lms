@@ -34,7 +34,7 @@ export default function CreateCoursePage() {
   const [loading, setLoading] = useState(false);
   
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<CreateCourseInput>({
-    resolver: zodResolver(createCourseSchema),
+    resolver: zodResolver(createCourseSchema) as any,
     defaultValues: {
       title: "",
       description: "",
@@ -54,7 +54,7 @@ export default function CreateCoursePage() {
       const result = await createCourse(data);
       
       if (result.success) {
-        router.push(`/instructor/courses/${result.data.id}`);
+        router.push(`/instructor/courses/${result.data!.id}`);
       } else {
         setError(result.error);
       }

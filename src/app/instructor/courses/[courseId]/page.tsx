@@ -52,14 +52,14 @@ export default function EditCoursePage() {
       const result = await getCourseById(courseId, true);
       
       if (result.success) {
-        const course = result.data;
+        const course = result.data!;
         reset({
           id: course.id,
           title: course.title,
           description: course.description,
           coverImage: course.coverImage || "",
           category: course.category,
-          level: course.level,
+          level: course.level as any,
           price: course.price,
           status: course.status,
         });

@@ -63,11 +63,13 @@ import {
   Loader2,
   ArrowLeft,
   HelpCircle,
+  HelpCircle as QuizIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { QuizManager } from "@/components/instructor/QuizManager";
 
 // Sortable Section Component
-function SortableSectionItem({ section, onEdit, onDelete, onAddLesson, onEditLesson, onDeleteLesson }: any) {
+function SortableSectionItem({ section, onEdit, onDelete, onAddLesson, onEditLesson, onDeleteLesson, onRefresh }: any) {
   const {
     attributes,
     listeners,
@@ -97,6 +99,12 @@ function SortableSectionItem({ section, onEdit, onDelete, onAddLesson, onEditLes
                 <Badge variant="outline">
                   {section.lessons?.length || 0} lessons
                 </Badge>
+                {section.quiz && (
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                    <QuizIcon className="w-3 h-3 mr-1" />
+                    Quiz Available
+                  </Badge>
+                )}
               </div>
               {section.description && (
                 <p className="text-sm text-slate-600">{section.description}</p>
@@ -122,9 +130,19 @@ function SortableSectionItem({ section, onEdit, onDelete, onAddLesson, onEditLes
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="ml-8 space-y-2">
+          <div className="ml-8 space-y-4">
+            {/* Section Quiz */}
+            <QuizManager
+              parentId={section.id}
+              parentType="section"
+              onQuizChange={onRefresh}
+            />
+            
             {/* Lessons List */}
             <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-slate-700">Lessons</h4>
+              </div>
               {section.lessons && section.lessons.length > 0 ? (
                 <SortableContext
                   items={section.lessons.map((l: any) => l.id)}
@@ -137,6 +155,7 @@ function SortableSectionItem({ section, onEdit, onDelete, onAddLesson, onEditLes
                       sectionId={section.id}
                       onEdit={onEditLesson}
                       onDelete={onDeleteLesson}
+                      onRefresh={onRefresh}
                     />
                   ))}
                 </SortableContext>
@@ -165,7 +184,7 @@ function SortableSectionItem({ section, onEdit, onDelete, onAddLesson, onEditLes
 }
 
 // Sortable Lesson Component
-function SortableLessonItem({ lesson, onEdit, onDelete }: any) {
+function SortableLessonItem({ lesson, onEdit, onDelete, onRefresh }: any) {
   const {
     attributes,
     listeners,
@@ -182,42 +201,56 @@ function SortableLessonItem({ lesson, onEdit, onDelete }: any) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-        <GripVertical className="w-4 h-4 text-slate-400" />
-      </div>
-      {lesson.type === "VIDEO" ? (
-        <Video className="w-4 h-4 text-blue-600" />
-      ) : (
-        <FileText className="w-4 h-4 text-green-600" />
-      )}
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{lesson.title}</span>
-          {lesson.isPreview && (
-            <Badge variant="secondary" className="text-xs">Preview</Badge>
-          )}
-          {lesson.quiz && (
-            <Badge variant="outline" className="text-xs">Quiz</Badge>
-          )}
+    <div ref={setNodeRef} style={style}>
+      <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+          <GripVertical className="w-4 h-4 text-slate-400" />
+        </div>
+        {lesson.type === "VIDEO" ? (
+          <Video className="w-4 h-4 text-blue-600" />
+        ) : (
+          <FileText className="w-4 h-4 text-green-600" />
+        )}
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">{lesson.title}</span>
+            {lesson.isPreview && (
+              <Badge variant="secondary" className="text-xs">Preview</Badge>
+            )}
+            {lesson.quiz && (
+              <Badge variant="outline" className="text-xs bg-purple-50">
+                <QuizIcon className="w-3 h-3 mr-1" />
+                Quiz
+              </Badge>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onEdit(lesson)}
+          >
+            <Edit className="w-3 h-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-red-600"
+            onClick={() => onDelete(lesson.id)}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
         </div>
       </div>
-      <div className="flex gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => onEdit(lesson)}
-        >
-          <Edit className="w-3 h-3" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-red-600"
-          onClick={() => onDelete(lesson.id)}
-        >
-          <Trash2 className="w-3 h-3" />
-        </Button>
+      
+      {/* Lesson Quiz */}
+      <div className="ml-8 mt-2">
+        <QuizManager
+          parentId={lesson.id}
+          parentType="lesson"
+          onQuizChange={onRefresh}
+        />
       </div>
     </div>
   );
@@ -268,7 +301,7 @@ export default function CurriculumPage() {
       const result = await getCourseById(courseId, true);
       if (result.success) {
         setCourse(result.data);
-        setSections(result.data.sections || []);
+        setSections(result.data?.sections as any || []);
       } else {
         setError(result.error);
       }
@@ -497,7 +530,8 @@ export default function CurriculumPage() {
                 <h3 className="font-semibold text-blue-900 mb-1">Curriculum Tips</h3>
                 <p className="text-sm text-blue-700">
                   Drag and drop sections and lessons to reorder them. Each section can contain multiple lessons.
-                  Lessons can be text-based or video-based. You can add quizzes to lessons later.
+                  Lessons can be text-based or video-based. You can add quizzes to sections or individual lessons.
+                  Quizzes help assess student understanding.
                 </p>
               </div>
             </div>
@@ -540,6 +574,7 @@ export default function CurriculumPage() {
                     onAddLesson={handleAddLesson}
                     onEditLesson={handleEditLesson}
                     onDeleteLesson={handleDeleteLesson}
+                    onRefresh={fetchCourse}
                   />
                 ))}
               </div>
