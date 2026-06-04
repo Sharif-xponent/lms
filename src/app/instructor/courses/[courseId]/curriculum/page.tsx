@@ -9,7 +9,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -283,6 +283,7 @@ export default function CurriculumPage() {
   });
   
   const [submitting, setSubmitting] = useState(false);
+  const [lessonType, setLessonType] = useState<"TEXT" | "VIDEO">("TEXT");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -400,6 +401,7 @@ export default function CurriculumPage() {
   const handleAddLesson = (section: any) => {
     setEditingLesson(null);
     setCurrentSectionId(section.id);
+    setLessonType("TEXT");
     setLessonForm({
       title: "",
       content: "",
@@ -413,6 +415,7 @@ export default function CurriculumPage() {
   const handleEditLesson = (lesson: any) => {
     setEditingLesson(lesson);
     setCurrentSectionId(lesson.sectionId);
+    setLessonType(lesson.type);
     setLessonForm({
       title: lesson.title,
       content: lesson.content || "",
@@ -423,13 +426,23 @@ export default function CurriculumPage() {
     setLessonDialogOpen(true);
   };
 
+  const handleLessonTypeChange = (type: "TEXT" | "VIDEO") => {
+    setLessonType(type);
+    setLessonForm({
+      ...lessonForm,
+      type: type,
+      videoUrl: type === "VIDEO" ? lessonForm.videoUrl : "",
+      content: type === "TEXT" ? lessonForm.content : "",
+    });
+  };
+
   const handleSaveLesson = async () => {
     if (!lessonForm.title.trim()) {
       setError("Lesson title is required");
       return;
     }
     
-    if (lessonForm.type === "VIDEO" && !lessonForm.videoUrl) {
+    if (lessonType === "VIDEO" && !lessonForm.videoUrl) {
       setError("Video URL is required for video lessons");
       return;
     }
@@ -443,12 +456,16 @@ export default function CurriculumPage() {
           title: lessonForm.title,
           content: lessonForm.content,
           videoUrl: lessonForm.videoUrl || null,
-          type: lessonForm.type,
+          type: lessonType,
           isPreview: lessonForm.isPreview,
         });
       } else {
         result = await createLesson({
-          ...lessonForm,
+          title: lessonForm.title,
+          content: lessonForm.content,
+          videoUrl: lessonForm.videoUrl || null,
+          type: lessonType,
+          isPreview: lessonForm.isPreview,
           sectionId: currentSectionId,
           attachments: [],
         });
@@ -627,7 +644,7 @@ export default function CurriculumPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Lesson Dialog */}
+        {/* Updated Lesson Dialog */}
         <Dialog open={lessonDialogOpen} onOpenChange={setLessonDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -635,83 +652,143 @@ export default function CurriculumPage() {
                 {editingLesson ? "Edit Lesson" : "Add New Lesson"}
               </DialogTitle>
               <DialogDescription>
-                Create engaging lessons for your students.
+                Create engaging lessons for your students. Text lessons are great for reading material, while video lessons are perfect for demonstrations.
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-6 py-4">
+              {/* Lesson Title */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Lesson Title *</label>
+                <label className="text-sm font-medium">
+                  Lesson Title <span className="text-red-500">*</span>
+                </label>
                 <Input
-                  placeholder="e.g., Setting up your development environment"
+                  placeholder="e.g., Introduction to the Course"
                   value={lessonForm.title}
                   onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
+                  className="text-base"
                 />
               </div>
               
-              <div className="space-y-2">
+              {/* Lesson Type Selection */}
+              <div className="space-y-3">
                 <label className="text-sm font-medium">Lesson Type</label>
-                <div className="flex gap-3">
-                  <Button
+                <div className="grid grid-cols-2 gap-3">
+                  <button
                     type="button"
-                    variant={lessonForm.type === "TEXT" ? "default" : "outline"}
-                    onClick={() => setLessonForm({ ...lessonForm, type: "TEXT", videoUrl: "" })}
+                    onClick={() => handleLessonTypeChange("TEXT")}
+                    className={`flex items-center justify-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      lessonType === "TEXT"
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
                   >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Text Lesson
-                  </Button>
-                  <Button
+                    <FileText className={`w-5 h-5 ${
+                      lessonType === "TEXT" ? "text-blue-600" : "text-slate-500"
+                    }`} />
+                    <div className="text-left">
+                      <div className={`font-medium ${
+                        lessonType === "TEXT" ? "text-blue-700" : "text-slate-700"
+                      }`}>
+                        Text Lesson
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Written content, PDFs, and documents
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
                     type="button"
-                    variant={lessonForm.type === "VIDEO" ? "default" : "outline"}
-                    onClick={() => setLessonForm({ ...lessonForm, type: "VIDEO" })}
+                    onClick={() => handleLessonTypeChange("VIDEO")}
+                    className={`flex items-center justify-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      lessonType === "VIDEO"
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
                   >
-                    <Video className="w-4 h-4 mr-2" />
-                    Video Lesson
-                  </Button>
+                    <Video className={`w-5 h-5 ${
+                      lessonType === "VIDEO" ? "text-blue-600" : "text-slate-500"
+                    }`} />
+                    <div className="text-left">
+                      <div className={`font-medium ${
+                        lessonType === "VIDEO" ? "text-blue-700" : "text-slate-700"
+                      }`}>
+                        Video Lesson
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        YouTube, Vimeo, or direct video links
+                      </div>
+                    </div>
+                  </button>
                 </div>
               </div>
               
-              {lessonForm.type === "TEXT" && (
+              {/* Content based on lesson type */}
+              {lessonType === "TEXT" ? (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Content</label>
                   <Textarea
-                    placeholder="Write your lesson content here..."
+                    placeholder="Write your lesson content here. You can include text, code snippets, and links..."
                     value={lessonForm.content}
                     onChange={(e) => setLessonForm({ ...lessonForm, content: e.target.value })}
-                    rows={10}
-                  />
-                </div>
-              )}
-              
-              {lessonForm.type === "VIDEO" && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Video URL *</label>
-                  <Input
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    value={lessonForm.videoUrl}
-                    onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
+                    rows={12}
+                    className="font-mono text-sm"
                   />
                   <p className="text-xs text-slate-500">
-                    Support YouTube, Vimeo, or direct video URLs
+                    Tip: Use markdown formatting for better readability
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">
+                    Video URL <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+                    value={lessonForm.videoUrl}
+                    onChange={(e) => setLessonForm({ ...lessonForm, videoUrl: e.target.value })}
+                    className="font-mono text-sm"
+                  />
+                  
+                  {/* Video Preview */}
+                  {lessonForm.videoUrl && (
+                    <div className="mt-4">
+                      <label className="text-sm font-medium mb-2 block">Preview</label>
+                      <div className="aspect-video bg-slate-100 rounded-lg overflow-hidden">
+                        <iframe
+                          src={lessonForm.videoUrl.replace("watch?v=", "embed/")}
+                          className="w-full h-full"
+                          title="Video preview"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-slate-500">
+                    Supported platforms: YouTube, Vimeo, Wistia, or direct MP4 URLs
                   </p>
                 </div>
               )}
               
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isPreview"
-                  checked={lessonForm.isPreview}
-                  onChange={(e) => setLessonForm({ ...lessonForm, isPreview: e.target.checked })}
-                  className="w-4 h-4 rounded border-slate-300"
-                />
-                <label htmlFor="isPreview" className="text-sm font-medium">
-                  Make this lesson available as free preview
+              {/* Free Preview Option */}
+              <div className="border-t pt-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lessonForm.isPreview}
+                    onChange={(e) => setLessonForm({ ...lessonForm, isPreview: e.target.checked })}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-300"
+                  />
+                  <div>
+                    <div className="text-sm font-medium">Make this lesson available as free preview</div>
+                    <p className="text-xs text-slate-500">
+                      Students can watch this lesson before enrolling. Great for attracting new students!
+                    </p>
+                  </div>
                 </label>
               </div>
-              <p className="text-xs text-slate-500 ml-6">
-                Free preview lessons can be watched by students before enrollment
-              </p>
             </div>
             
             <DialogFooter>
@@ -720,7 +797,7 @@ export default function CurriculumPage() {
               </Button>
               <Button onClick={handleSaveLesson} disabled={submitting}>
                 {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {editingLesson ? "Update" : "Create"} Lesson
+                {editingLesson ? "Update Lesson" : "Create Lesson"}
               </Button>
             </DialogFooter>
           </DialogContent>

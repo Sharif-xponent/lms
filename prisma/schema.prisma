@@ -1,5 +1,4 @@
-// Prisma schema — LearnHub LMS with Quiz Support
-// Extended from the provided auth starter
+// Prisma schema — LearnHub LMS with Quiz Support (One-to-Many)
 
 datasource db {
   provider = "mongodb"
@@ -121,7 +120,7 @@ model Section {
   courseId String   @db.ObjectId
   course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons  Lesson[]
-  quiz     Quiz?
+  quizzes  Quiz[] // One-to-many: section can have multiple quizzes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -141,7 +140,7 @@ model Lesson {
 
   sectionId String  @db.ObjectId
   section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  quiz      Quiz?
+  quizzes   Quiz[] // One-to-many: lesson can have multiple quizzes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -156,11 +155,11 @@ model Quiz {
   timeLimit       Int?
   passingScore    Int     @default(70)
   attemptsAllowed Int     @default(1) // -1 for unlimited
+  order           Int     @default(0) // For ordering quizzes
 
-  // Polymorphic relations: can belong to either Section or Lesson
-  // Use @unique to enforce one-to-one relationship
-  sectionId String? @unique @db.ObjectId
-  lessonId  String? @unique @db.ObjectId
+  // Polymorphic relations: can belong to either Section or Lesson (one-to-many)
+  sectionId String? @db.ObjectId
+  lessonId  String? @db.ObjectId
 
   section   Section?      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   lesson    Lesson?       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
@@ -169,6 +168,9 @@ model Quiz {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([sectionId])
+  @@index([lessonId])
 }
 
 model Question {
@@ -178,6 +180,7 @@ model Question {
   correctAnswer Int
   points        Int      @default(1)
   explanation   String?
+  order         Int      @default(0)
 
   quizId String @db.ObjectId
   quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)

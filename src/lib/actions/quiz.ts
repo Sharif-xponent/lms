@@ -480,3 +480,58 @@ export async function canRetakeQuiz(quizId: string) {
     return { success: false, error: error.message };
   }
 }
+
+
+// Add this function to your existing quiz actions
+export async function reorderQuizzes(data: unknown) {
+  try {
+    const user = await requireRole("INSTRUCTOR", "ADMIN");
+    const { quizzes } = reorderQuizzesSchema.parse(data);
+    
+    if (quizzes.length === 0) return { success: true };
+    
+    // Verify ownership of first quiz
+    const firstQuiz = await prisma.quiz.findFirst({
+      where: {
+        id: quizzes[0].id,
+        OR: [
+          { section: { course: { instructorId: user.id } } },
+          { lesson: { section: { course: { instructorId: user.id } } } },
+        ],
+      },
+    });
+    
+    if (!firstQuiz) throw new Error("Quiz not found or unauthorized");
+    
+    await Promise.all(
+      quizzes.map(({ id, order }) =>
+        prisma.quiz.update({
+          where: { id },
+          data: { order },
+        })
+      )
+    );
+    
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getQuizzesByParent(parentId: string, type: "section" | "lesson") {
+  try {
+    const quizzes = await prisma.quiz.findMany({
+      where: type === "section" ? { sectionId: parentId } : { lessonId: parentId },
+      include: {
+        questions: {
+          orderBy: { order: "asc" },
+        },
+      },
+      orderBy: { order: "asc" },
+    });
+    
+    return { success: true, data: quizzes };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

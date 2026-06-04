@@ -1,9 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-guard";
+import { requireRole, requireUser } from "@/lib/auth-guard";
 import { createCourseSchema, updateCourseSchema, getCoursesSchema } from "@/lib/validations/course";
-import { revalidatePath } from "next/cache";
 
 export async function createCourse(data: unknown) {
   try {
@@ -196,12 +195,23 @@ export async function getCourseById(courseId: string, forEdit: boolean = false) 
             lessons: {
               orderBy: { order: "asc" },
               include: {
-                quiz: {
+                quizzes: {  // Changed from 'quiz' to 'quizzes'
                   include: {
-                    questions: true,
+                    questions: {
+                      orderBy: { order: "asc" },
+                    },
                   },
+                  orderBy: { order: "asc" },
                 },
               },
+            },
+            quizzes: {  // Include section quizzes
+              include: {
+                questions: {
+                  orderBy: { order: "asc" },
+                },
+              },
+              orderBy: { order: "asc" },
             },
           },
         },

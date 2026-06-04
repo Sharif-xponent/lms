@@ -1,6 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useSortable } from "@dnd-kit/sortable";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,17 +39,18 @@ import {
   Edit, 
   HelpCircle, 
   X, 
-  Save,
+  GripVertical,
   Loader2,
   Clock,
   Target,
   Award
 } from "lucide-react";
 import { 
-  getQuizByParent, 
+  getQuizzesByParent, 
   createQuiz, 
   updateQuiz, 
-  deleteQuiz 
+  deleteQuiz,
+  reorderQuizzes
 } from "@/lib/actions/quiz";
 
 interface Question {
@@ -43,16 +61,78 @@ interface Question {
   explanation?: string;
 }
 
+interface Quiz {
+  id: string;
+  title: string;
+  description: string | null;
+  timeLimit: number | null;
+  passingScore: number;
+  attemptsAllowed: number;
+  order: number;
+  questions: Question[];
+}
+
 interface QuizManagerProps {
   parentId: string;
   parentType: "section" | "lesson";
   onQuizChange?: () => void;
 }
 
+// Sortable Quiz Item Component
+function SortableQuizItem({ quiz, onEdit, onDelete, index }: any) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: quiz.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="mb-3">
+      <div className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:shadow-sm transition-shadow">
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+          <GripVertical className="w-4 h-4 text-slate-400" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">Quiz {index + 1}:</span>
+            <span className="text-sm">{quiz.title}</span>
+            <Badge variant="outline" className="text-xs">
+              {quiz.questions?.length || 0} questions
+            </Badge>
+          </div>
+          <div className="flex gap-3 mt-1 text-xs text-slate-500">
+            <span>Pass: {quiz.passingScore}%</span>
+            {quiz.timeLimit && <span>⏱ {quiz.timeLimit} min</span>}
+            <span>Attempts: {quiz.attemptsAllowed === -1 ? "∞" : quiz.attemptsAllowed}</span>
+          </div>
+        </div>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={() => onEdit(quiz)}>
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button size="sm" variant="ghost" className="text-red-600" onClick={() => onDelete(quiz.id)}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerProps) {
-  const [quiz, setQuiz] = useState<any>(null);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [questions, setQuestions] = useState<Question[]>([
@@ -66,31 +146,72 @@ export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerP
     attemptsAllowed: 1,
   });
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
-    fetchQuiz();
+    fetchQuizzes();
   }, [parentId, parentType]);
 
-  const fetchQuiz = async () => {
+  const fetchQuizzes = async () => {
     try {
       setLoading(true);
-      const result = await getQuizByParent(parentId, parentType);
-      if (result.success && result.data) {
-        setQuiz(result.data);
-        setQuizForm({
-          title: result.data.title,
-          description: result.data.description || "",
-          timeLimit: result.data.timeLimit,
-          passingScore: result.data.passingScore,
-          attemptsAllowed: result.data.attemptsAllowed,
-        });
-        setQuestions(result.data.questions);
-      } else {
-        setQuiz(null);
+      const result = await getQuizzesByParent(parentId, parentType);
+      if (result.success) {
+        setQuizzes(result.data);
       }
     } catch (error) {
-      console.error("Failed to fetch quiz:", error);
+      console.error("Failed to fetch quizzes:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddQuiz = () => {
+    setEditingQuiz(null);
+    setQuizForm({
+      title: "",
+      description: "",
+      timeLimit: null,
+      passingScore: 70,
+      attemptsAllowed: 1,
+    });
+    setQuestions([{ text: "", options: ["", ""], correctAnswer: 0, points: 1 }]);
+    setError("");
+    setDialogOpen(true);
+  };
+
+  const handleEditQuiz = (quiz: Quiz) => {
+    setEditingQuiz(quiz);
+    setQuizForm({
+      title: quiz.title,
+      description: quiz.description || "",
+      timeLimit: quiz.timeLimit,
+      passingScore: quiz.passingScore,
+      attemptsAllowed: quiz.attemptsAllowed,
+    });
+    setQuestions(quiz.questions);
+    setError("");
+    setDialogOpen(true);
+  };
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    if (!confirm("Are you sure you want to delete this quiz? This action cannot be undone.")) return;
+    
+    try {
+      const result = await deleteQuiz(quizId);
+      if (result.success) {
+        await fetchQuizzes();
+        onQuizChange?.();
+      } else {
+        setError(result.error);
+      }
+    } catch (error: any) {
+      setError(error.message || "Failed to delete quiz");
     }
   };
 
@@ -171,19 +292,20 @@ export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerP
       
       const data = {
         ...quizForm,
-        questions,
+        questions: questions.map((q, idx) => ({ ...q, order: idx })),
         [parentType === "section" ? "sectionId" : "lessonId"]: parentId,
+        order: editingQuiz?.order ?? quizzes.length,
       };
 
       let result;
-      if (quiz) {
-        result = await updateQuiz({ id: quiz.id, ...data });
+      if (editingQuiz) {
+        result = await updateQuiz({ id: editingQuiz.id, ...data });
       } else {
         result = await createQuiz(data);
       }
 
       if (result.success) {
-        await fetchQuiz();
+        await fetchQuizzes();
         setDialogOpen(false);
         onQuizChange?.();
       } else {
@@ -196,19 +318,23 @@ export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerP
     }
   };
 
-  const handleDeleteQuiz = async () => {
-    if (!confirm("Are you sure you want to delete this quiz? This action cannot be undone.")) return;
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
     
-    try {
-      const result = await deleteQuiz(quiz.id);
-      if (result.success) {
-        setQuiz(null);
-        onQuizChange?.();
-      } else {
-        setError(result.error);
-      }
-    } catch (error: any) {
-      setError(error.message || "Failed to delete quiz");
+    if (active.id !== over?.id) {
+      const oldIndex = quizzes.findIndex((q) => q.id === active.id);
+      const newIndex = quizzes.findIndex((q) => q.id === over?.id);
+      
+      const newQuizzes = arrayMove(quizzes, oldIndex, newIndex);
+      setQuizzes(newQuizzes);
+      
+      // Update order on server
+      const updates = newQuizzes.map((quiz, index) => ({
+        id: quiz.id,
+        order: index,
+      }));
+      
+      await reorderQuizzes({ quizzes: updates });
     }
   };
 
@@ -216,76 +342,73 @@ export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerP
     return (
       <div className="flex items-center gap-2 text-sm text-slate-500">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Loading quiz...
+        Loading quizzes...
       </div>
     );
   }
 
   return (
     <div className="mt-3 p-3 bg-slate-50 rounded-lg border">
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
           <HelpCircle className="w-4 h-4 text-purple-600" />
-          <h4 className="font-semibold text-sm">Quiz</h4>
-          {quiz && (
+          <h4 className="font-semibold text-sm">Quizzes</h4>
+          {quizzes.length > 0 && (
             <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-xs">
-              {quiz.questions?.length || 0} questions
+              {quizzes.length} quiz{quizzes.length > 1 ? "zes" : ""}
             </Badge>
           )}
         </div>
         
-        {!quiz ? (
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" />
-            Add Quiz
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-              <Edit className="w-4 h-4 mr-1" />
-              Edit
-            </Button>
-            <Button size="sm" variant="destructive" onClick={handleDeleteQuiz}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
+        <Button size="sm" onClick={handleAddQuiz}>
+          <Plus className="w-4 h-4 mr-1" />
+          Add Quiz
+        </Button>
       </div>
       
-      {quiz && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{quiz.title}</span>
-          </div>
-          {quiz.description && (
-            <p className="text-xs text-slate-600">{quiz.description}</p>
-          )}
-          <div className="flex gap-3 text-xs text-slate-500">
-            <div className="flex items-center gap-1">
-              <Target className="w-3 h-3" />
-              <span>Pass: {quiz.passingScore}%</span>
-            </div>
-            {quiz.timeLimit && (
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                <span>{quiz.timeLimit} min</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1">
-              <Award className="w-3 h-3" />
-              <span>Attempts: {quiz.attemptsAllowed === -1 ? "∞" : quiz.attemptsAllowed}</span>
-            </div>
-          </div>
+      {quizzes.length === 0 ? (
+        <div className="text-center py-4 text-slate-500 text-sm">
+          No quizzes yet. Click "Add Quiz" to create one.
         </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={quizzes.map(q => q.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {quizzes.map((quiz, index) => (
+                <SortableQuizItem
+                  key={quiz.id}
+                  quiz={quiz}
+                  index={index}
+                  onEdit={handleEditQuiz}
+                  onDelete={handleDeleteQuiz}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Quiz Creation/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setDialogOpen(false);
+          setError("");
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{quiz ? "Edit Quiz" : "Create Quiz"}</DialogTitle>
+            <DialogTitle>{editingQuiz ? "Edit Quiz" : "Create New Quiz"}</DialogTitle>
             <DialogDescription>
-              Create a quiz to test your students' knowledge
+              {editingQuiz 
+                ? "Edit your quiz questions and settings" 
+                : `Create a new quiz for this ${parentType}`}
             </DialogDescription>
           </DialogHeader>
           
@@ -303,7 +426,7 @@ export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerP
                 <Input
                   value={quizForm.title}
                   onChange={(e) => setQuizForm({ ...quizForm, title: e.target.value })}
-                  placeholder="e.g., JavaScript Fundamentals Quiz"
+                  placeholder={`e.g., ${parentType === "section" ? "Section" : "Lesson"} Quiz 1`}
                 />
               </div>
               
@@ -466,7 +589,7 @@ export function QuizManager({ parentId, parentType, onQuizChange }: QuizManagerP
             </Button>
             <Button onClick={handleSaveQuiz} disabled={submitting}>
               {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {quiz ? "Update Quiz" : "Create Quiz"}
+              {editingQuiz ? "Update Quiz" : "Create Quiz"}
             </Button>
           </DialogFooter>
         </DialogContent>

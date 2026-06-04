@@ -210,6 +210,9 @@ export async function reorderLessons(data: unknown) {
   }
 }
 
+
+
+// Add this to your existing curriculum actions file
 export async function getSectionWithLessons(sectionId: string) {
   try {
     const section = await prisma.section.findUnique({
@@ -218,12 +221,19 @@ export async function getSectionWithLessons(sectionId: string) {
         lessons: {
           orderBy: { order: "asc" },
           include: {
-            quiz: {
+            quizzes: {  // Changed from 'quiz' to 'quizzes'
               include: {
                 questions: true,
               },
+              orderBy: { order: "asc" },
             },
           },
+        },
+        quizzes: {  // Include section quizzes
+          include: {
+            questions: true,
+          },
+          orderBy: { order: "asc" },
         },
       },
     });

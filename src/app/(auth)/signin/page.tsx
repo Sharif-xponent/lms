@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { GraduationCap, Mail, Lock, Loader2 } from "lucide-react";
+import { GraduationCap, Mail, Lock, Loader2, Chrome } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm<SignInInput>({
     resolver: zodResolver(signInSchema),
@@ -48,6 +49,17 @@ export default function SignInPage() {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true);
+      setError("");
+      await signIn("google", { callbackUrl: "/" });
+    } catch (error) {
+      setError("Failed to sign in with Google. Please try again.");
+      setGoogleLoading(false);
     }
   };
   
@@ -112,7 +124,31 @@ export default function SignInPage() {
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign In
+              Sign In with Email
+            </Button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-slate-500">Or continue with</span>
+              </div>
+            </div>
+            
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleSignIn}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Chrome className="mr-2 h-4 w-4" />
+              )}
+              Sign In with Google
             </Button>
             
             <div className="text-sm text-center text-slate-600">
