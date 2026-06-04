@@ -1,0 +1,9 @@
+// Merge this into your tsconfig.json "compilerOptions" if not already present.
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
